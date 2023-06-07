@@ -95,16 +95,27 @@ types.each { type ->
     }
 
     // Copy libraries.
+    def bin_dir = file("${project.protobuf_install}/${type.toLowerCase()}/bin")
     def lib_dir = file("${project.protobuf_install}/${type.toLowerCase()}/lib")
 
-    from("$lib_dir") {
-      into "${project.platform_path}/shared"
-      include "*.dll"
-      include "*.pdb"
-      include "*.so.${project.ext.version}".toString()
-      include "*.${project.ext.version}.dylib".toString()
-      eachFile { f->
-        f.name = f.name.replace("${project.ext.version}", "${project.ext.soVersion}")
+    if (project.platform.contains("windows")) {
+      from("$bin_dir") {
+        into "${project.platform_path}/shared"
+        include "*.dll"
+        include "*.pdb"
+        eachFile { f->
+          f.name = f.name.replace("${project.ext.version}", "${project.ext.soVersion}")
+        }
+      }
+    } else {
+      from("$lib_dir") {
+        into "${project.platform_path}/shared"
+        include "*.lib"
+        include "*.so.${project.ext.version}".toString()
+        include "*.${project.ext.version}.dylib".toString()
+        eachFile { f->
+          f.name = f.name.replace("${project.ext.version}", "${project.ext.soVersion}")
+        }
       }
     }
 
