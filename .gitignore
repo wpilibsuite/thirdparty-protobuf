@@ -1,0 +1,8 @@
+build-*
+install-*
+install
+.gradle
+.idea/
+.settings
+.vscode
+build

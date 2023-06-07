@@ -1,0 +1,172 @@
+name: CI
+
+on: [ push, pull_request ]
+
+jobs:
+  build-linux:
+    name: "Build - Linux"
+    runs-on: ubuntu-latest
+    container: wpilib/ubuntu-base:22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: ./gradlew build
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Linux
+          path: build/allOutputs
+
+  build-linux-arm32:
+    name: "Build - Linux Arm32"
+    runs-on: ubuntu-latest
+    container: wpilib/raspbian-cross-ubuntu:bullseye-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: ./gradlew build -Pforcecrossbuild=linux-arm32
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Linux Arm32
+          path: build/allOutputs
+
+  build-linux-arm64:
+    name: "Build - Linux Arm64"
+    runs-on: ubuntu-latest
+    container: wpilib/aarch64-cross-ubuntu:bullseye-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: ./gradlew build -Pforcecrossbuild=linux-arm64
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Linux Arm64
+          path: build/allOutputs
+
+  build-linux-athena:
+    name: "Build - Linux Athena"
+    runs-on: ubuntu-latest
+    container: wpilib/roborio-cross-ubuntu:2023-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: ./gradlew build -Pforcecrossbuild=linux-athena
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Linux Athena
+          path: build/allOutputs
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact-name: Win64
+            architecture: x64
+            vc: vcvars64.bat
+          - artifact-name: Win32
+            architecture: x86
+            vc: vcvars32.bat
+          - artifact-name: WinArm64
+            architecture: x64
+            vc: vcvarsamd64_arm64.bat
+            build-options: "-Pforcecrossbuild=windows-arm64"
+    name: "Build - ${{ matrix.artifact-name }}"
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v3
+        with:
+          java-version: 11
+          distribution: 'zulu'
+          architecture: ${{ matrix.architecture }}
+
+      - uses: ilammy/setup-nasm@v1
+
+      - name: Build with Gradle
+        run: |
+          @call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\VC\\Auxiliary\\Build\\${{ matrix.vc }}"
+          gradlew build ${{ matrix.build-options }}
+        shell: cmd
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: build/allOutputs
+
+  build-macos:
+    env:
+      MACOSX_DEPLOYMENT_TARGET: 10.14
+    name: "Build - macOS"
+    runs-on: macos-11
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: ./gradlew build
+
+      - name: BuildArm
+        run: ./gradlew build -Pforcealternatemacbuild
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: macOS
+          path: build/allOutputs
+
+  combine:
+    name: Combine
+    needs: [ build-linux, build-windows, build-macos, build-linux-athena, build-linux-arm32, build-linux-arm64 ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: wpilibsuite/build-tools
+      - uses: actions/download-artifact@v3
+        with:
+          path: combiner/products/build/allOutputs
+      - name: Flatten Artifacts
+        run: rsync -a --delete combiner/products/build/allOutputs/*/* combiner/products/build/allOutputs/
+      - uses: actions/setup-java@v3
+        with:
+          java-version: 11
+          distribution: 'zulu'
+      - name: Combine
+        if: |
+          !startsWith(github.ref, 'refs/tags/v')
+        run: ./gradlew publish -Pthirdparty
+        working-directory: combiner
+      - name: Combine (Release)
+        if: |
+          github.repository_owner == 'wpilibsuite' &&
+          startsWith(github.ref, 'refs/tags/v')
+        run: |
+          ./gradlew publish -Pthirdparty
+        working-directory: combiner
+        env:
+          RUN_AZURE_ARTIFACTORY_RELEASE: 'TRUE'
+          ARTIFACTORY_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+          ARTIFACTORY_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Maven
+          path: ~/releases

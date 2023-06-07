@@ -1,0 +1,142 @@
+// Define directories and files used for outputs.
+def outputs_dir = file("$buildDir/outputs")
+def protobuf_license_file = file("protobuf/LICENSE")
+
+// Define names for publishing.
+def base_artifact_id = "protobuf"
+def artifact_group_id = "edu.wpi.first.thirdparty.frc2023"
+
+// Define names for archives.
+def zip_base_name = "_GROUP_edu_wpi_first_thirdparty_frc2023_ID_protobuf_CLS"
+
+// Generate version number.
+def version_file = file("$outputs_dir/version.txt")
+task outputVersions() {
+  outputs.files(version_file)
+
+  doFirst {
+    buildDir.mkdir()
+    outputs_dir.mkdir()
+  }
+
+  doLast {
+    version_file.write project.pub_version
+  }
+}
+
+build.dependsOn outputVersions
+copyAllOutputs.dependsOn outputVersions
+copyAllOutputs.inputs.file version_file
+copyAllOutputs.from version_file
+
+// Create archive of headers.
+task cppHeadersZip(type: Zip) {
+  destinationDirectory = outputs_dir
+  archiveBaseName = zip_base_name
+  archiveClassifier = "headers"
+
+  // Copy license files.
+  from(protobuf_license_file) {
+    into "/"
+    rename { _ -> "PROTOBUF-LICENSE" }
+  }
+
+  // Copy headers.
+  from("${project.protobuf_install}/debug/install/include") {
+    into "/"
+    include "**/*.h", "**/*.hpp"
+  }
+
+  includeEmptyDirs = false
+
+  // Add task to copy all outputs.
+  project.addTaskToCopyAllOutputs(it)
+}
+
+// Create archive of sources.
+
+task cppSourcesZip(type: Zip) {
+  destinationDirectory = outputs_dir
+  archiveBaseName = zip_base_name
+  archiveClassifier = "sources"
+
+  // Copy license files.
+  from(protobuf_license_file) {
+    into "/"
+    rename { _ -> "PROTOBUF-LICENSE" }
+  }
+
+  // Copy sources.
+  from("${project.protobuf_dir}/src") {
+    into "/"
+    include "**/*.cc", "**/*.h", "**/*.proto"
+  }
+
+  includeEmptyDirs = false
+
+  // Add task to copy all outputs.
+  project.addTaskToCopyAllOutputs(it)
+}
+
+// Create archive of libraries.
+def types = ["Debug", "Release"]
+types.each { type ->
+  project.tasks.create("cpp${type}LibrariesZip", Zip) {
+    dependsOn "protobuf$type"
+
+    destinationDirectory = outputs_dir
+    archiveBaseName = zip_base_name
+    archiveClassifier = project.platform_classifier + "shared" + type.toLowerCase().replace("release", "")
+
+    // Copy license files.
+    from(protobuf_license_file) {
+      into "/"
+      rename { _ -> "FLATBUFFERS-LICENSE" }
+    }
+
+    // Copy libraries.
+    def lib_dir = file("${project.protobuf_install}/${type.toLowerCase()}/lib")
+
+    if (project.platform.contains("windows")) {
+      // On Windows, the staging dir is one layer deeper.
+      lib_dir = file("$lib_dir/$type")
+      from("$lib_dir") {
+        into "${project.platform_path}/shared"
+        include "*.dll"
+        include "*.pdb"
+        eachFile { f->
+          f.name = f.name.replace("${project.ext.version}", "${project.ext.soVersion}")
+        }
+      }
+    } else {
+      from("$lib_dir") {
+        into "${project.platform_path}/shared"
+        include "*.so.${project.ext.version}".toString()
+        include "*.${project.ext.version}.dylib".toString()
+        eachFile { f->
+          f.name = f.name.replace("${project.ext.version}", "${project.ext.soVersion}")
+        }
+      }
+    }
+
+    // Add task to copy all outputs.
+    project.addTaskToCopyAllOutputs(it)
+  }
+}
+
+model {
+  publishing {
+    publications {
+      protobuf(MavenPublication) {
+        artifact cppHeadersZip
+        artifact cppSourcesZip
+        artifact cppDebugLibrariesZip
+        artifact cppReleaseLibrariesZip
+
+        artifactId = base_artifact_id
+        groupId = artifact_group_id
+        version = project.pub_version
+      }
+    }
+  }
+}

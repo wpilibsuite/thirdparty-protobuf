@@ -1,0 +1,116 @@
+import org.gradle.internal.os.OperatingSystem
+
+plugins {
+  id "maven-publish"
+}
+
+// Project Version
+ext.pub_version = "3.21.12"
+ext.version = "3.21.12.0"
+ext.soVersion = "32"
+
+static def get_platform() {
+  def platform
+  def os_name = System.getProperty("os.name")
+  def os_arch = System.getProperty("os.arch")
+
+  if (os_arch == 'amd64') {
+    os_arch = 'x86_64'
+  } else if (os_arch == 'i386') {
+    os_arch = 'x86'
+  } else if (os_arch == 'aarch64' || os_arch == 'arm64') {
+    os_arch = 'arm64'
+  }
+
+  if (OperatingSystem.current().isWindows()) {
+    platform = "windows-${os_arch}"
+  } else if (OperatingSystem.current().isLinux()) {
+    platform = "linux-${os_arch}"
+  } else if (OperatingSystem.current().isMacOsX()) {
+    platform = "osx-${os_arch}"
+  } else {
+    platform = "${os_name}-${os_arch}"
+  }
+
+  return platform
+}
+
+static def get_platform_path(platform) {
+  if (platform == "linux-athena") {
+    return "linux/athena"
+  } else if (platform == "linux-arm32") {
+    return "linux/arm32"
+  } else if (platform == "linux-arm64") {
+    return "linux/arm64"
+  } else if (platform == "linux-x86") {
+    return "linux/x86"
+  } else if (platform == "linux-x86_64") {
+    return "linux/x86-64"
+  } else if (platform == "osx-x86") {
+    return "osx/x86"
+  } else if (platform == "osx-x86_64") {
+    return "osx/x86-64"
+  } else if (platform == "windows-x86") {
+    return "windows/x86"
+  } else if (platform == "windows-x86_64") {
+    return "osx/x86-64"
+  } else if (platform == "osx-arm64") {
+    return "osx/arm64"
+  } else {
+    return ""
+  }
+}
+
+ext.platform = get_platform()
+if (project.hasProperty('forcealternatemacbuild')) {
+  if (ext.platform == "osx-arm64") {
+    ext.platform = "osx-x86_64"
+  } else if (ext.platform == "osx-x86_64") {
+    ext.platform = "osx-arm64"
+  }
+}
+if (project.hasProperty('forcecrossbuild')) {
+  ext.platform = forcecrossbuild
+}
+ext.platform_path = get_platform_path(ext.platform)
+ext.platform_classifier = ext.platform.replaceFirst('-', '').replace('_', '-')
+
+// Get the number of processors available to build.
+ext.processors = Runtime.runtime.availableProcessors()
+
+ext.protobuf_dir = file("protobuf")
+ext.protobuf_build = file("build/$platform_path/protobuf")
+ext.protobuf_install = file("install/$platform_path/protobuf")
+
+task clean {
+  doLast {
+    rootDir.eachDir {dir ->
+      if (dir.name.startsWith("build") || dir.name.startsWith("install"))
+        delete dir
+    }
+  }
+}
+
+apply from: "protobuf.gradle"
+
+// Outputs for publishing
+def outputs_dir = file("$buildDir/allOutputs")
+task copyAllOutputs(type: Copy) {
+  destinationDir outputs_dir
+}
+
+ext.addTaskToCopyAllOutputs = { task ->
+  copyAllOutputs.dependsOn task
+  copyAllOutputs.inputs.file task.archiveFile
+  copyAllOutputs.from task.archiveFile
+}
+
+task build {
+  dependsOn copyAllOutputs
+}
+
+apply from: "publish.gradle"
+
+wrapper {
+    gradleVersion = '8.1'
+}
