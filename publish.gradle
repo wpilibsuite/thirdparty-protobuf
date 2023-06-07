@@ -42,7 +42,7 @@ task cppHeadersZip(type: Zip) {
   }
 
   // Copy headers.
-  from("${project.protobuf_install}/debug/install/include") {
+  from("${project.protobuf_install}/debug/include") {
     into "/"
     include "**/*.h", "**/*.hpp"
   }
@@ -91,7 +91,7 @@ types.each { type ->
     // Copy license files.
     from(protobuf_license_file) {
       into "/"
-      rename { _ -> "FLATBUFFERS-LICENSE" }
+      rename { _ -> "PROTOBUF-LICENSE" }
     }
 
     // Copy libraries.
