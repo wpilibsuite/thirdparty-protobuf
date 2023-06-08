@@ -1,142 +1,192 @@
-// Define directories and files used for outputs.
-def outputs_dir = file("$buildDir/outputs")
-def protobuf_license_file = file("protobuf/LICENSE")
+apply plugin: 'maven-publish'
 
-// Define names for publishing.
-def base_artifact_id = "protobuf"
-def artifact_group_id = "edu.wpi.first.thirdparty.frc2023"
+publishing {
+    repositories {
+        maven {
+            url "${System.getProperty('user.home')}/releases/maven/development"
+        }
+        maven {
+            url "${System.getProperty('user.home')}/releases/maven/release"
+        }
+    }
+}
 
-// Define names for archives.
-def zip_base_name = "_GROUP_edu_wpi_first_thirdparty_frc2023_ID_protobuf_CLS"
+def releaseNumber = 1
 
-// Generate version number.
-def version_file = file("$outputs_dir/version.txt")
+def pubVersion = "3.21.12-$releaseNumber"
+
+def baseArtifactId = 'protobuf'
+def artifactGroupId = 'edu.wpi.first.thirdparty.frc2023'
+def zipBaseName = '_GROUP_edu_wpi_first_thirdparty_frc2023_ID_protobuf_CLS'
+
+def outputsFolder = file("$project.buildDir/outputs")
+
+def versionFile = file("$outputsFolder/version.txt")
+
 task outputVersions() {
-  outputs.files(version_file)
+    description = 'Prints the versions of this to a file for use by the downstream packaging project'
+    group = 'Build'
+    outputs.files(versionFile)
 
-  doFirst {
-    buildDir.mkdir()
-    outputs_dir.mkdir()
-  }
+    doFirst {
+        buildDir.mkdir()
+        outputsFolder.mkdir()
+    }
 
-  doLast {
-    version_file.write project.pub_version
-  }
+    doLast {
+        versionFile.write pubVersion
+    }
 }
 
 build.dependsOn outputVersions
 copyAllOutputs.dependsOn outputVersions
-copyAllOutputs.inputs.file version_file
-copyAllOutputs.from version_file
+copyAllOutputs.inputs.file versionFile
+copyAllOutputs.from versionFile
 
-// Create archive of headers.
-task cppHeadersZip(type: Zip) {
-  destinationDirectory = outputs_dir
-  archiveBaseName = zip_base_name
-  archiveClassifier = "headers"
+task cSourcesZip(type: Zip) {
+    destinationDirectory = outputsFolder
+    archiveBaseName = zipBaseName
+    archiveClassifier = "sources"
 
-  // Copy license files.
-  from(protobuf_license_file) {
-    into "/"
-    rename { _ -> "PROTOBUF-LICENSE" }
-  }
-
-  // Copy headers.
-  from("${project.protobuf_install}/debug/include") {
-    into "/"
-    include "**/*.h", "**/*.hpp"
-  }
-
-  includeEmptyDirs = false
-
-  // Add task to copy all outputs.
-  project.addTaskToCopyAllOutputs(it)
-}
-
-// Create archive of sources.
-
-task cppSourcesZip(type: Zip) {
-  destinationDirectory = outputs_dir
-  archiveBaseName = zip_base_name
-  archiveClassifier = "sources"
-
-  // Copy license files.
-  from(protobuf_license_file) {
-    into "/"
-    rename { _ -> "PROTOBUF-LICENSE" }
-  }
-
-  // Copy sources.
-  from("${project.protobuf_dir}/src") {
-    into "/"
-    include "**/*.cc", "**/*.h", "**/*.proto"
-  }
-
-  includeEmptyDirs = false
-
-  // Add task to copy all outputs.
-  project.addTaskToCopyAllOutputs(it)
-}
-
-// Create archive of libraries.
-def types = ["Debug", "Release"]
-types.each { type ->
-  project.tasks.create("cpp${type}LibrariesZip", Zip) {
-    dependsOn "protobuf$type"
-
-    destinationDirectory = outputs_dir
-    archiveBaseName = zip_base_name
-    archiveClassifier = project.platform_classifier + "shared" + type.toLowerCase().replace("release", "")
-
-    // Copy license files.
-    from(protobuf_license_file) {
-      into "/"
-      rename { _ -> "PROTOBUF-LICENSE" }
+    from(licenseFile) {
+        into '/'
     }
 
-    // Copy libraries.
-    def bin_dir = file("${project.protobuf_install}/${type.toLowerCase()}/bin")
-    def lib_dir = file("${project.protobuf_install}/${type.toLowerCase()}/lib")
+    from('protobuf/src/google/protobuf') {
+        include 'any.cc',
+            'any.pb.cc',
+            'api.pb.cc',
+            'compiler/importer.cc',
+            'compiler/parser.cc',
+            'descriptor.cc',
+            'descriptor.pb.cc',
+            'descriptor_database.cc',
+            'duration.pb.cc',
+            'dynamic_message.cc',
+            'empty.pb.cc',
+            'extension_set_heavy.cc',
+            'field_mask.pb.cc',
+            'generated_message_bases.cc',
+            'generated_message_reflection.cc',
+            'generated_message_tctable_full.cc',
+            'io/gzip_stream.cc',
+            'io/printer.cc',
+            'io/tokenizer.cc',
+            'map_field.cc',
+            'message.cc',
+            'reflection_ops.cc',
+            'service.cc',
+            'source_context.pb.cc',
+            'struct.pb.cc',
+            'stubs/substitute.cc',
+            'text_format.cc',
+            'timestamp.pb.cc',
+            'type.pb.cc',
+            'unknown_field_set.cc',
+            'util/delimited_message_util.cc',
+            'util/field_comparator.cc',
+            'util/field_mask_util.cc',
+            'util/internal/datapiece.cc',
+            'util/internal/default_value_objectwriter.cc',
+            'util/internal/error_listener.cc',
+            'util/internal/field_mask_utility.cc',
+            'util/internal/json_escaping.cc',
+            'util/internal/json_objectwriter.cc',
+            'util/internal/json_stream_parser.cc',
+            'util/internal/object_writer.cc',
+            'util/internal/proto_writer.cc',
+            'util/internal/protostream_objectsource.cc',
+            'util/internal/protostream_objectwriter.cc',
+            'util/internal/type_info.cc',
+            'util/internal/utility.cc',
+            'util/json_util.cc',
+            'util/message_differencer.cc',
+            'util/time_util.cc',
+            'util/type_resolver_util.cc',
+            'wire_format.cc',
+            'wrappers.pb.cc'
+        into '/'
+    }
+}
 
-    if (project.platform.contains("windows")) {
-      from("$bin_dir") {
-        into "${project.platform_path}/shared"
-        include "*.dll"
-        include "*.pdb"
-        eachFile { f->
-          f.name = f.name.replace("${project.ext.version}", "${project.ext.soVersion}")
-        }
-      }
-    } else {
-      from("$lib_dir") {
-        into "${project.platform_path}/shared"
-        include "*.lib"
-        include "*.so.${project.ext.version}".toString()
-        include "*.${project.ext.version}.dylib".toString()
-        eachFile { f->
-          f.name = f.name.replace("${project.ext.version}", "${project.ext.soVersion}")
-        }
-      }
+task cHeadersZip(type: Zip) {
+    destinationDirectory = outputsFolder
+    archiveBaseName = zipBaseName
+    archiveClassifier = "headers"
+
+    from(licenseFile) {
+        into '/'
     }
 
-    // Add task to copy all outputs.
-    project.addTaskToCopyAllOutputs(it)
-  }
+    from('protobuf/src') {
+        into '/'
+        include 'google/protobuf/any.pb.h',
+            'google/protobuf/api.pb.h',
+            'google/protobuf/compiler/importer.h',
+            'google/protobuf/compiler/parser.h',
+            'google/protobuf/descriptor.h',
+            'google/protobuf/descriptor.pb.h',
+            'google/protobuf/descriptor_database.h',
+            'google/protobuf/duration.pb.h',
+            'google/protobuf/dynamic_message.h',
+            'google/protobuf/empty.pb.h',
+            'google/protobuf/field_access_listener.h',
+            'google/protobuf/field_mask.pb.h',
+            'google/protobuf/generated_enum_reflection.h',
+            'google/protobuf/generated_message_bases.h',
+            'google/protobuf/generated_message_reflection.h',
+            'google/protobuf/io/gzip_stream.h',
+            'google/protobuf/io/printer.h',
+            'google/protobuf/io/tokenizer.h',
+            'google/protobuf/map_entry.h',
+            'google/protobuf/map_field.h',
+            'google/protobuf/map_field_inl.h',
+            'google/protobuf/message.h',
+            'google/protobuf/metadata.h',
+            'google/protobuf/reflection.h',
+            'google/protobuf/reflection_internal.h',
+            'google/protobuf/reflection_ops.h',
+            'google/protobuf/service.h',
+            'google/protobuf/source_context.pb.h',
+            'google/protobuf/struct.pb.h',
+            'google/protobuf/text_format.h',
+            'google/protobuf/timestamp.pb.h',
+            'google/protobuf/type.pb.h',
+            'google/protobuf/unknown_field_set.h',
+            'google/protobuf/util/delimited_message_util.h',
+            'google/protobuf/util/field_comparator.h',
+            'google/protobuf/util/field_mask_util.h',
+            'google/protobuf/util/json_util.h',
+            'google/protobuf/util/message_differencer.h',
+            'google/protobuf/util/time_util.h',
+            'google/protobuf/util/type_resolver.h',
+            'google/protobuf/util/type_resolver_util.h',
+            'google/protobuf/wire_format.h',
+            'google/protobuf/wrappers.pb.h'
+    }
 }
+
+build.dependsOn cHeadersZip
+build.dependsOn cSourcesZip
+
+addTaskToCopyAllOutputs(cHeadersZip)
+addTaskToCopyAllOutputs(cSourcesZip)
 
 model {
-  publishing {
-    publications {
-      protobuf(MavenPublication) {
-        artifact cppHeadersZip
-        artifact cppSourcesZip
-        artifact cppDebugLibrariesZip
-        artifact cppReleaseLibrariesZip
+    publishing {
+        def gTaskList = createComponentZipTasks($.components, ['protobuf'], zipBaseName, Zip, project, includeStandardZipFormat)
+        publications {
+            c(MavenPublication) {
+                gTaskList.each {
+                    artifact it
+                }
+                artifact cHeadersZip
+                artifact cSourcesZip
 
-        artifactId = base_artifact_id
-        groupId = artifact_group_id
-        version = project.pub_version
-      }
+                artifactId = baseArtifactId
+                groupId artifactGroupId
+                version pubVersion
+            }
+        }
     }
-  }
 }

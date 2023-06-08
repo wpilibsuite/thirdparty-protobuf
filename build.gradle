@@ -1,117 +1,160 @@
-import org.gradle.internal.os.OperatingSystem
+import org.gradle.internal.jvm.Jvm
 
 plugins {
-  id "maven-publish"
+    id 'c'
+    id 'cpp'
+    id 'visual-studio'
+    id 'edu.wpi.first.NativeUtils' version '2024.0.0'
+    id 'edu.wpi.first.GradleVsCode' version '1.3.0'
 }
 
-// Project Version
-ext.pub_version = "3.21.12"
-ext.version = "3.21.12.0"
-ext.soVersion = "32"
-
-static def get_platform() {
-  def platform
-  def os_name = System.getProperty("os.name")
-  def os_arch = System.getProperty("os.arch")
-
-  if (os_arch == 'amd64') {
-    os_arch = 'x86_64'
-  } else if (os_arch == 'i386') {
-    os_arch = 'x86'
-  } else if (os_arch == 'aarch64' || os_arch == 'arm64') {
-    os_arch = 'arm64'
-  }
-
-  if (OperatingSystem.current().isWindows()) {
-    platform = "windows-${os_arch}"
-  } else if (OperatingSystem.current().isLinux()) {
-    platform = "linux-${os_arch}"
-  } else if (OperatingSystem.current().isMacOsX()) {
-    platform = "osx-${os_arch}"
-  } else {
-    platform = "${os_name}-${os_arch}"
-  }
-
-  return platform
+repositories {
+    mavenCentral()
 }
 
-static def get_platform_path(platform) {
-  if (platform == "linux-athena") {
-    return "linux/athena"
-  } else if (platform == "linux-arm32") {
-    return "linux/arm32"
-  } else if (platform == "linux-arm64") {
-    return "linux/arm64"
-  } else if (platform == "linux-x86") {
-    return "linux/x86"
-  } else if (platform == "linux-x86_64") {
-    return "linux/x86-64"
-  } else if (platform == "osx-x86") {
-    return "osx/x86"
-  } else if (platform == "osx-x86_64") {
-    return "osx/x86-64"
-  } else if (platform == "osx-arm64") {
-    return "osx/arm64"
-  } else if (platform == "windows-x86") {
-    return "windows/x86"
-  } else if (platform == "windows-x86_64") {
-    return "windows/x86-64"
-  } else if (platform == "windows-arm64") {
-    return "windows/arm64"
-  } else {
-    return ""
-  }
+ext.licenseFile = file("$rootDir/protobuf/LICENSE")
+
+apply from: 'config.gradle'
+
+def outputsFolder = file("$buildDir/allOutputs")
+
+task copyAllOutputs(type: Copy) {
+    destinationDir outputsFolder
 }
 
-ext.platform = get_platform()
-if (project.hasProperty('forcealternatemacbuild')) {
-  if (ext.platform == "osx-arm64") {
-    ext.platform = "osx-x86_64"
-  } else if (ext.platform == "osx-x86_64") {
-    ext.platform = "osx-arm64"
-  }
+build.dependsOn copyAllOutputs
+
+ext.addTaskToCopyAllOutputs = { task ->
+    copyAllOutputs.dependsOn task
+    copyAllOutputs.inputs.file task.archiveFile
+    copyAllOutputs.from task.archiveFile
 }
-if (project.hasProperty('forcecrossbuild')) {
-  ext.platform = forcecrossbuild
-}
-ext.platform_path = get_platform_path(ext.platform)
-ext.platform_classifier = ext.platform.replaceFirst('-', '').replace('_', '-')
 
-// Get the number of processors available to build.
-ext.processors = Runtime.runtime.availableProcessors()
-
-ext.protobuf_dir = file("protobuf")
-ext.protobuf_build = file("build/$platform_path/protobuf")
-ext.protobuf_install = file("install/$platform_path/protobuf")
-
-task clean {
-  doLast {
-    rootDir.eachDir {dir ->
-      if (dir.name.startsWith("build") || dir.name.startsWith("install"))
-        delete dir
+nativeUtils {
+  exportsConfigs {
+    // Main library is just default empty. This will export everything
+    protobuf {
     }
   }
 }
 
-apply from: "protobuf.gradle"
-
-// Outputs for publishing
-def outputs_dir = file("$buildDir/allOutputs")
-task copyAllOutputs(type: Copy) {
-  destinationDir outputs_dir
+model {
+    components {
+        protobuf(NativeLibrarySpec) {
+            sources {
+                cpp {
+                    source {
+                        srcDirs 'protobuf/src/google/protobuf'
+                        include 'any.cc',
+                            'any.pb.cc',
+                            'api.pb.cc',
+                            'compiler/importer.cc',
+                            'compiler/parser.cc',
+                            'descriptor.cc',
+                            'descriptor.pb.cc',
+                            'descriptor_database.cc',
+                            'duration.pb.cc',
+                            'dynamic_message.cc',
+                            'empty.pb.cc',
+                            'extension_set_heavy.cc',
+                            'field_mask.pb.cc',
+                            'generated_message_bases.cc',
+                            'generated_message_reflection.cc',
+                            'generated_message_tctable_full.cc',
+                            'io/gzip_stream.cc',
+                            'io/printer.cc',
+                            'io/tokenizer.cc',
+                            'map_field.cc',
+                            'message.cc',
+                            'reflection_ops.cc',
+                            'service.cc',
+                            'source_context.pb.cc',
+                            'struct.pb.cc',
+                            'stubs/substitute.cc',
+                            'text_format.cc',
+                            'timestamp.pb.cc',
+                            'type.pb.cc',
+                            'unknown_field_set.cc',
+                            'util/delimited_message_util.cc',
+                            'util/field_comparator.cc',
+                            'util/field_mask_util.cc',
+                            'util/internal/datapiece.cc',
+                            'util/internal/default_value_objectwriter.cc',
+                            'util/internal/error_listener.cc',
+                            'util/internal/field_mask_utility.cc',
+                            'util/internal/json_escaping.cc',
+                            'util/internal/json_objectwriter.cc',
+                            'util/internal/json_stream_parser.cc',
+                            'util/internal/object_writer.cc',
+                            'util/internal/proto_writer.cc',
+                            'util/internal/protostream_objectsource.cc',
+                            'util/internal/protostream_objectwriter.cc',
+                            'util/internal/type_info.cc',
+                            'util/internal/utility.cc',
+                            'util/json_util.cc',
+                            'util/message_differencer.cc',
+                            'util/time_util.cc',
+                            'util/type_resolver_util.cc',
+                            'wire_format.cc',
+                            'wrappers.pb.cc'
+                    }
+                    exportedHeaders {
+                        srcDirs 'protobuf/src'
+                        include 'google/protobuf/any.pb.h',
+                            'google/protobuf/api.pb.h',
+                            'google/protobuf/compiler/importer.h',
+                            'google/protobuf/compiler/parser.h',
+                            'google/protobuf/descriptor.h',
+                            'google/protobuf/descriptor.pb.h',
+                            'google/protobuf/descriptor_database.h',
+                            'google/protobuf/duration.pb.h',
+                            'google/protobuf/dynamic_message.h',
+                            'google/protobuf/empty.pb.h',
+                            'google/protobuf/field_access_listener.h',
+                            'google/protobuf/field_mask.pb.h',
+                            'google/protobuf/generated_enum_reflection.h',
+                            'google/protobuf/generated_message_bases.h',
+                            'google/protobuf/generated_message_reflection.h',
+                            'google/protobuf/io/gzip_stream.h',
+                            'google/protobuf/io/printer.h',
+                            'google/protobuf/io/tokenizer.h',
+                            'google/protobuf/map_entry.h',
+                            'google/protobuf/map_field.h',
+                            'google/protobuf/map_field_inl.h',
+                            'google/protobuf/message.h',
+                            'google/protobuf/metadata.h',
+                            'google/protobuf/reflection.h',
+                            'google/protobuf/reflection_internal.h',
+                            'google/protobuf/reflection_ops.h',
+                            'google/protobuf/service.h',
+                            'google/protobuf/source_context.pb.h',
+                            'google/protobuf/struct.pb.h',
+                            'google/protobuf/text_format.h',
+                            'google/protobuf/timestamp.pb.h',
+                            'google/protobuf/type.pb.h',
+                            'google/protobuf/unknown_field_set.h',
+                            'google/protobuf/util/delimited_message_util.h',
+                            'google/protobuf/util/field_comparator.h',
+                            'google/protobuf/util/field_mask_util.h',
+                            'google/protobuf/util/json_util.h',
+                            'google/protobuf/util/message_differencer.h',
+                            'google/protobuf/util/time_util.h',
+                            'google/protobuf/util/type_resolver.h',
+                            'google/protobuf/util/type_resolver_util.h',
+                            'google/protobuf/wire_format.h',
+                            'google/protobuf/wrappers.pb.h'
+                    }
+                }
+            }
+            binaries.withType(SharedLibraryBinarySpec) {
+                buildable = false
+            }
+            appendDebugPathToBinaries(binaries)
+        }
+    }
 }
 
-ext.addTaskToCopyAllOutputs = { task ->
-  copyAllOutputs.dependsOn task
-  copyAllOutputs.inputs.file task.archiveFile
-  copyAllOutputs.from task.archiveFile
-}
-
-task build {
-  dependsOn copyAllOutputs
-}
-
-apply from: "publish.gradle"
+apply from: 'publish.gradle'
 
 wrapper {
     gradleVersion = '8.1'
